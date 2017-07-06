@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Heatmaps</title>
+    <script src="http://d3js.org/d3.v3.min.js"></script>
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+      
+    <style>
+      /* Always set the map height explicitly to define the size of the div
+       * element that contains the map. */
+      #map {
+        height: 100%;
+          width:100%;
+      }
+      /* Optional: Makes the sample page fill the window. */
+      html, body {
+        height: 80%;
+        margin: 0;
+        padding: 0;
+      }
+      #filter-panel {
+           width: 100%;
+           margin-right: auto;
+        }
+       #crime-panel #season-panel{
+            width: 25%;
+           margin-right: auto;
+        }
+        #crime-panel {
+            border-top-left-radius: 10px;
+            border-bottom-left-radius: 10px;
+            float: left;
+        }
+        #season-panel {
+            float: left;
+        }
+        #period-panel {
+            float: left;
+        }
+        #percentTotal {
+            float:left;
+        }
+        #riskLikelihood {
+            float:left;
+        }
+        #donutchart{
+            float:left;
+        }
+      #floating-panel {
+        position: absolute;
+        top: 160px;
+        left: 100%;
+        width: 420px;
+        z-index: 5;
+/*        background-color: #fff;*/
+        padding: 5px;
+/*        border: 1px solid #999;*/
+        text-align: center;
+        font-family: 'Roboto','sans-serif';
+        line-height: 30px;
+        padding-left: 10px;
+      }
+      #floating-panel {
+/*        background-color: #fff;*/
+/*        border: 1px solid #999;*/
+        left: 0%;
+        padding: 5px;
+        position: absolute;
+        top: 240px;
+        z-index: 5;
+      }
+/*
+    ul#mapButtons li {
+        display:inline;
+    }
+*/#offenseCheckbox {
+  float:left;
+}
+    .floated {
+        float:right;
+        margin-right:5px;
+    }
+    </style>
+  </head>
+
+  <body>
+    <div id = "title">
+    <h1 style = "margin-left: 20px"> Virginia Beach Crimes 2016 - click on the map!</h1>
+    </div>
+      <div id= "filter-panel"> 
+        <div id = "crime-panel">
+          <h3 style = "margin-left: 30px"> Offense</h3>
+          <ul id = "crime-list">
+              <input id = "assaultCheckbox" class = "offenseCheckbox" type = "checkbox" value = "ASSAULT" checked = "checked" > Assault<br>
+              <input id = "dopCheckbox" class = "offenseCheckbox" type = "checkbox" value = "DESTRUCTION OF PROPERTY" checked = "checked"> Destruction of Property <br>
+              <input id = "fraudCheckbox" class = "offenseCheckbox" type = "checkbox" value = "FRAUD" checked = "checked"> Fraud <br>
+              <input id = "h&rCheckbox" class = "offenseCheckbox" type = "checkbox" value = "HIT & RUN" checked = "checked"> Hit & Run <br>
+              <input id = "larcenyCheckbox" class = "offenseCheckbox" type = "checkbox" value = "LARCENY" checked = "checked"> Larceny <br>
+          </ul>
+        </div>
+        <div id = "season-panel">
+          <h3 style = "margin-left: 30px"> Season </h3>
+          <ul>
+              <input id = "fallCheckbox" class = "seasonCheckbox" type = "checkbox" value = "FALL" checked = "checked" > Fall<br>
+              <input id = "winterCheckbox" class = "seasonCheckbox" type = "checkbox" value = "WINTER" checked = "checked" > Winter<br>
+              <input id = "springCheckbox" class = "seasonCheckbox" type = "checkbox" value = "SPRING" checked = "checked" > Spring<br>
+              <input id = "summerCheckbox" class = "seasonCheckbox" type = "checkbox" value = "SUMMER" checked = "checked" > Summer<br>
+          </ul>
+        </div>
+        <div id = "period-panel">
+            <h3 style = "margin-left: 30px"> Time </h3>
+            <ul>
+              <input id = "morningCheckbox" class = "periodCheckbox" type = "checkbox" value = "MORNING" checked = "checked" > Morning (6am-12pm)<br>
+              <input id = "afternoonCheckbox" class = "periodCheckbox" type = "checkbox" value = "AFTERNOON" checked = "checked" > Afternoon (12pm -5pm)<br>
+              <input id = "eveningCheckbox" class = "periodCheckbox" type = "checkbox" value = "EVENING" checked = "checked" > Evening (5pm-8pm)<br>
+              <input id = "nightCheckbox" class = "periodCheckbox" type = "checkbox" value = "NIGHT" checked = "checked" > Night (8pm-6am)<br>
+            </ul>
+        </div>
+        <div id = "percentTotal">
+            <h3 style = "margin-left: 30px"> % of Total Crime</h3>
+            <p style = "margin-left: 60px; font-size:20px; font-family: awesome" id = "numerator">100%</p>
+        </div>
+        <div id = "riskLikelihood">
+            <h3 style = "margin-left: 30px"> Relative Risk</h3>
+            <p style = "margin-left: 60px; font-size:20px; font-family: awesome" id = "riskRatio"> N/A </p>
+        </div>
+        <div id="donutchart" style="width: 400px; height: 400px; margin-top:-200px">
+        </div>
+      </div>
+
+      
+
+      
+    <div id="floating-panel">
+        <input type="button" class="floated" onclick="toggleHeatmap()" value="Toggle Heatmap">
+        <input type="button" class="floated" onclick="changeGradient()"  value="Change Gradient">
+        <input type="button" class="floated" onclick="changeRadius()"  value="Change Radius">
+        <input type="button" class="floated" onclick="changeOpacity()"  value="Change Opacity">
+    </div>
+
+    <div id="map"></div>
+    <script>
+
+
+      var map, heatmap, fullData;
+      var heatmapData = [];
+      var degreeMiles = 0.02239598;
+      var marker, markerLng, markerLat, smallCircle, bigCircle;
+      var smallCount, bigCount, smallDensity, bigDensity, smallArea, bigArea;
+      var riskRatio, smallRadius, bigRadius;
+      var assaultCount = [];
+      var DoPCount = [];
+      var FraudCount = [];
+      var HRCount = [];
+      var LarcenyCount = [];
+      var masterOffense = [];
+      var countRatio = 1.5;
+      var tempHeatMapData = [];
+      var tempCrimeData = [];
+      var crimeData, crimeOptions, crimeChart, crimeTable;
+        
+    google.charts.load("current", {packages:["corechart"]});
+      google.charts.setOnLoadCallback(drawChart);
+     
+      
+    function drawChart(){
+        crimeData = google.visualization.arrayToDataTable([
+          ['Crime', 'Count'],
+          ['Assault',     3710],
+          ['DoP',      3310],
+          ['Fraud',  2035],
+          ['Hit and Run', 2405],
+          ['Larceny',    6952]
+        ]);
+
+        crimeOptions = {
+          pieHole: 0.4,
+            'width':500,
+            'height':500,
+            legend:{ alignment: 'center' },
+        };
+
+        crimeChart = new google.visualization.PieChart(document.getElementById('donutchart'));
+        crimeChart.draw(crimeData, crimeOptions);
+    }
+      
+
+
+      function initMap() {
+        
+        map = new google.maps.Map(document.getElementById('map'), {
+          zoom: 11,
+          center: {lat: 36.8529, lng: -75.9780},
+          styles: [
+            {elementType: 'geometry', stylers: [{color: '#242f3e'}]},
+            {elementType: 'labels.text.stroke', stylers: [{color: '#242f3e'}]},
+            {elementType: 'labels.text.fill', stylers: [{color: '#746855'}]},
+            {
+              featureType: 'administrative.locality',
+              elementType: 'labels.text.fill',
+              stylers: [{color: '#d59563'}]
+            },
+            {
+              featureType: 'poi',
+              elementType: 'labels.text.fill',
+              stylers: [{color: '#d59563'}]
+            },
+            {
+              featureType: 'poi.park',
+              elementType: 'geometry',
+              stylers: [{color: '#263c3f'}]
+            },
+            {
+              featureType: 'poi.park',
+              elementType: 'labels.text.fill',
+              stylers: [{color: '#6b9a76'}]
+            },
+            {
+              featureType: 'road',
+              elementType: 'geometry',
+              stylers: [{color: '#38414e'}]
+            },
+            {
+              featureType: 'road',
+              elementType: 'geometry.stroke',
+              stylers: [{color: '#212a37'}]
+            },
+            {
+              featureType: 'road',
+              elementType: 'labels.text.fill',
+              stylers: [{color: '#9ca5b3'}]
+            },
+            {
+              featureType: 'road.highway',
+              elementType: 'geometry',
+              stylers: [{color: '#746855'}]
+            },
+            {
+              featureType: 'road.highway',
+              elementType: 'geometry.stroke',
+              stylers: [{color: '#1f2835'}]
+            },
+            {
+              featureType: 'road.highway',
+              elementType: 'labels.text.fill',
+              stylers: [{color: '#f3d19c'}]
+            },
+            {
+              featureType: 'transit',
+              elementType: 'geometry',
+              stylers: [{color: '#2f3948'}]
+            },
+            {
+              featureType: 'transit.station',
+              elementType: 'labels.text.fill',
+              stylers: [{color: '#d59563'}]
+            },
+            {
+              featureType: 'water',
+              elementType: 'geometry',
+              stylers: [{color: '#17263c'}]
+            },
+            {
+              featureType: 'water',
+              elementType: 'labels.text.fill',
+              stylers: [{color: '#515c6d'}]
+            },
+            {
+              featureType: 'water',
+              elementType: 'labels.text.stroke',
+              stylers: [{color: '#17263c'}]
+            }
+          ]
+        });
+          
+         d3.csv("../Data/crime_2016.csv", function(data){
+             fullData = data;
+             data.forEach(function(d){
+                 heatmapData.push(new google.maps.LatLng(d["Lat"], d["Long"]));
+                 tempCrimeData = fullData;
+             });  
+        
+          heatmap = new google.maps.visualization.HeatmapLayer({
+          data: heatmapData
+           });
+        heatmap.setMap(map);  
+         });
+        
+      }
+
+      function toggleHeatmap() {
+        heatmap.setMap(heatmap.getMap() ? null : map);
+      }
+
+      function changeGradient() {
+        var gradient = [
+          'rgba(0, 255, 255, 0)',
+          'rgba(0, 255, 255, 1)',
+          'rgba(0, 191, 255, 1)',
+          'rgba(0, 127, 255, 1)',
+          'rgba(0, 63, 255, 1)',
+          'rgba(0, 0, 255, 1)',
+          'rgba(0, 0, 223, 1)',
+          'rgba(0, 0, 191, 1)',
+          'rgba(0, 0, 159, 1)',
+          'rgba(0, 0, 127, 1)',
+          'rgba(63, 0, 91, 1)',
+          'rgba(127, 0, 63, 1)',
+          'rgba(191, 0, 31, 1)',
+          'rgba(255, 0, 0, 1)'
+        ]
+        heatmap.set('gradient', heatmap.get('gradient') ? null : gradient);
+      }
+
+      function changeRadius() {
+        heatmap.set('radius', heatmap.get('radius') ? null : 20);
+      }
+
+      function changeOpacity() {
+        heatmap.set('opacity', heatmap.get('opacity') ? null : 0.2);
+      }
+        
+    function update(){
+        var offenseArray = [];
+        var seasonArray = [];
+        var periodArray = [];
+        tempHeatMapData = [];
+        tempCrimeData = [];
+        assaultCount = [];
+        masterOffense = [];
+        assaultCount = [];
+        DoPCount = [];
+         FraudCount = [];
+         HRCount = [];
+         LarcenyCount = [];
+        
+        heatmap.setMap(null);
+        d3.selectAll(".offenseCheckbox").each(function(d){
+            cb = d3.select(this);
+            if(cb.property("checked")){
+              offenseArray.push(cb.property("value"));
+            }
+        });
+        d3.selectAll(".seasonCheckbox").each(function(d){
+            cb = d3.select(this);
+            if(cb.property("checked")){
+                seasonArray.push(cb.property("value"));
+            }
+        });
+        d3.selectAll(".periodCheckbox").each(function(d){
+            cb = d3.select(this);
+            if(cb.property("checked")){
+                periodArray.push(cb.property("value"));
+            }
+        });
+        for(var a = 0; a<offenseArray.length; a++){
+            for(var b = 0; b < seasonArray.length; b++){
+                for(var c = 0; c < periodArray.length; c++){
+                    for(var j =0; j <fullData.length; j++){
+                        if(fullData[j]["Offense"]==offenseArray[a]){
+                            if(fullData[j]["Season"]==seasonArray[b]){
+                                if(fullData[j]["Period"]==periodArray[c]){
+                                    tempHeatMapData.push(new google.maps.LatLng(fullData[j]["Lat"], fullData[j]["Long"]));
+                                    tempCrimeData.push(fullData[j]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        for(var i =0; i<tempCrimeData.length; i++){
+        if(tempCrimeData[i]["Offense"]=="ASSAULT"){
+                        assaultCount.push(tempCrimeData[i]["Offense"]);
+                    }
+                    else if(tempCrimeData[i]["Offense"]=="DESTRUCTION OF PROPERTY"){
+                        DoPCount.push(tempCrimeData[i]["Offense"]);
+                    }
+                    else if(tempCrimeData[i]["Offense"]=="FRAUD"){
+                        FraudCount.push(tempCrimeData[i]["Offense"]);
+                    }
+                    else if(tempCrimeData[i]["Offense"]=="HIT & RUN"){
+                        HRCount.push(tempCrimeData[i]["Offense"]);
+                    }
+                    else if(tempCrimeData[i]["Offense"]=="LARCENY"){
+                        LarcenyCount.push(tempCrimeData[i]["Offense"]);
+                    }
+        }
+        
+        heatmap = new google.maps.visualization.HeatmapLayer({
+           data: tempHeatMapData 
+        });
+        heatmap.setMap(map);
+
+        
+        var percentage = ((heatmap.data.length / fullData.length)*100).toFixed(2) ;
+        d3.select("#numerator").text(percentage + "%");
+        
+        
+        updateChart();
+    }
+//        end update
+    
+    setTimeout(function() {
+        
+        google.maps.event.addListener(map, 'click', function(event) {
+            masterOffense = [];
+            assaultCount = [];
+            DoPCount = [];
+         FraudCount = [];
+         HRCount = [];
+         LarcenyCount = [];
+            
+        if(marker){
+            marker.setPosition(event.latLng);
+        }else{
+            marker = new google.maps.Marker({
+                position: event.latLng, map: map,
+                icon: {
+                path: google.maps.SymbolPath.CIRCLE,
+                scale: 1,
+                strokeColor: 'white',
+                strokeOpacity: 0.9,
+                fillColor:'white',
+                fillOpacity: 0.9,
+                }
+            });
+            
+            smallCircle = new google.maps.Circle({
+            map: map,
+            radius: 1609,    // 1 mile in metres
+            fillColor: '#AA0000',
+            fillOpacity: 0.1,
+            strokeColor: 'white',
+            strokeOpacity: 0.6
+        });
+            bigCircle = new google.maps.Circle({
+            map: map,
+            radius: 1609*countRatio,    // 1 mile in metres
+            fillColor: '#AA0000',
+            fillOpacity: 0.1,
+            strokeColor: 'white',
+            strokeOpacity: 0.3
+        });
+        } 
+        smallCircle.bindTo('center', marker, 'position');
+        bigCircle.bindTo('center', marker, 'position');
+  
+        
+            
+            markerLat = event.latLng.lat();
+            markerLng = event.latLng.lng();
+            smallCount = 0;
+            bigCount = 0;
+            
+            for(var i=0; i <tempCrimeData.length; i++){
+                latDiff = tempCrimeData[i]["Lat"]-markerLat;
+                lngDiff = tempCrimeData[i]["Long"]-markerLng;
+                if(Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2)) < degreeMiles){
+                    smallCount = smallCount+1;
+                    masterOffense.push(tempCrimeData[i]["Offense"]);
+                    if(tempCrimeData[i]["Offense"]=="ASSAULT"){
+                        assaultCount.push(tempCrimeData[i]["Offense"]);
+                    }
+                    else if(tempCrimeData[i]["Offense"]=="DESTRUCTION OF PROPERTY"){
+                        DoPCount.push(tempCrimeData[i]["Offense"]);
+                    }
+                    else if(tempCrimeData[i]["Offense"]=="FRAUD"){
+                        FraudCount.push(tempCrimeData[i]["Offense"]);
+                    }
+                    else if(tempCrimeData[i]["Offense"]=="HIT & RUN"){
+                        HRCount.push(tempCrimeData[i]["Offense"]);
+                    }
+                    else if(tempCrimeData[i]["Offense"]=="LARCENY"){
+                        LarcenyCount.push(tempCrimeData[i]["Offense"]);
+                    }
+                    
+                }
+                if(Math.sqrt(Math.pow(latDiff, 2) + Math.pow(lngDiff, 2)) < degreeMiles*Math.sqrt(countRatio)){
+                    bigCount = bigCount+1;
+                }
+            }
+            smallArea=Math.PI*Math.pow(degreeMiles,2);
+            bigArea = Math.PI*Math.pow(degreeMiles*countRatio,2);
+            smallDensity = smallCount/smallArea;
+            bigDensity = bigCount/bigArea;
+            riskRatio = (smallDensity/bigDensity)-1;
+            
+            if(isNaN(riskRatio)){
+                riskRatio = 0;
+            }
+        
+            d3.select("#riskRatio").text((riskRatio*100).toFixed(2) + "%");
+    });
+        //updateChart();
+    }, 500);
+    
+        setTimeout(function(){
+            google.maps.event.addListener(map, 'click', function(event) {
+            updateChart();
+        }
+        )
+        },750);
+        
+                                      
+        function updateChart(){
+        crimeData = google.visualization.arrayToDataTable([
+          ['Crime', 'Count'],
+          ['Assault',     assaultCount.length],
+          ['DoP',      DoPCount.length],
+          ['Fraud',  FraudCount.length],
+          ['Hit and Run', HRCount.length],
+          ['Larceny',    LarcenyCount.length]
+        ]);
+
+        crimeOptions = {
+          pieHole: 0.4,
+            'width':500,
+            'height':500,
+            legend:{ alignment: 'center' },
+        };
+
+        crimeChart = new google.visualization.PieChart(document.getElementById('donutchart'));
+        crimeChart.draw(crimeData, crimeOptions);
+        
+    }
+    
+        
+    
+    
+        
+//    setTimeout(function() {
+//        google.maps.event.addListener(map, 'click', function(event) {
+//        }
+//    }, 1000);
+                
+    
+//    
+//    setTimeout(function(){
+//        for(i =0; i< masterOffense.length; i++){
+//                if(masterOffense[i]=="ASSAULT"){
+//                    assaultCount = assaultCount+1;
+//                }
+//                if(masterOffense[i]=="DESTRUCTION OF PROPERTY"){
+//                    DoPCount = DoPCount+1;
+//                }
+//                if(masterOffense[i]=="FRAUD"){
+//                    FraudCount = FraudCount+1;
+//                }
+//                if(masterOffense[i]=="HIT & RUN"){
+//                    HRCount = HRCount+1;
+//                }
+//                if(masterOffense[i]=="LARCENY"){
+//                    LarcenyCount = LarcenyCount+1;
+//                }
+//            }
+//    }, 1000);
+    
+        
+    d3.selectAll(".offenseCheckbox").on("change",update);
+    d3.selectAll(".seasonCheckbox").on("change",update);
+    d3.selectAll(".periodCheckbox").on("change",update);
+    update();
+    
+    
+//        for(var i=0; i<fullData.length; i++){
+//            if(fullData[i]["Offense"]==type){
+//                tempHeatMapData.push(new google.maps.LatLng(fullData[i]["Lat"], fullData[i]["Long"]));
+//            }
+//          heatmap = new google.maps.visualization.HeatmapLayer({
+//            data: tempHeatMapData
+//          });
+//        }
+//         heatmap.setMap(map);
+    
+    
+    </script>
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDUsfl6nj-HQz-RngOYaOpOaYhKrOyMxvo&libraries=visualization&callback=initMap">
+    </script>
+  </body>
+</html>

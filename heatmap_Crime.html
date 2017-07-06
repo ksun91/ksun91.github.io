@@ -274,7 +274,7 @@
           ]
         });
           
-         d3.csv("http://github.com/ksun91/ksun91.github.io/Data/crime_2016.csv", function(data){
+         d3.csv("http://ksun91.github.io/Data/crime_2016.csv", function(data){
              fullData = data;
              data.forEach(function(d){
                  heatmapData.push(new google.maps.LatLng(d["Lat"], d["Long"]));
